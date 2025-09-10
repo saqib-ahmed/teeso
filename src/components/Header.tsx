@@ -17,9 +17,7 @@ const Header: React.FC<HeaderProps> = ({ onSettingsClick, onStatsClick }) => {
       <div className='max-w-7xl mx-auto px-4 py-3 sm:py-4'>
         <div className='flex items-center justify-between'>
           <div className='flex items-center space-x-2 sm:space-x-3'>
-            <div className='w-10 h-10 sm:w-12 sm:h-12 bg-gradient-to-r from-blue-500 to-purple-600 rounded-full flex items-center justify-center text-white text-lg sm:text-2xl font-bold'>
-              T
-            </div>
+            <img src='/icon-1024x1024.png' alt='Teeso' className='w-10 h-10' />
             <div>
               <h1
                 className={`text-xl sm:text-3xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent ${
