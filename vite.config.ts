@@ -10,10 +10,9 @@ export default defineConfig({
       registerType: "autoUpdate",
       includeAssets: ["favicon.ico", "apple-touch-icon.png", "mask-icon.svg"],
       manifest: {
-        name: "Teeso - Kids Guessing Game",
+        name: "Teeso - Guessing Game",
         short_name: "Teeso",
-        description:
-          "A fun bilingual guessing game for kids in Urdu and English",
+        description: "A fun guessing game for kids",
         theme_color: "#3B82F6",
         background_color: "#ffffff",
         display: "standalone",

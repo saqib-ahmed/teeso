@@ -30,6 +30,7 @@ const GamePlay: React.FC<GamePlayProps> = ({ categoryId, onBackToMenu }) => {
   const [selectedAnswer, setSelectedAnswer] = useState<string>("");
   const [showFeedback, setShowFeedback] = useState(false);
   const [isCorrect, setIsCorrect] = useState(false);
+  const [usedItems, setUsedItems] = useState<Set<string>>(new Set());
 
   const generateMultipleChoiceOptions = useCallback(
     (correctItem: GameItem, items: GameItem[]) => {
@@ -53,19 +54,37 @@ const GamePlay: React.FC<GamePlayProps> = ({ categoryId, onBackToMenu }) => {
       categories.find((cat) => cat.id === categoryId)?.items || [];
     if (currentCategoryItems.length === 0) return;
 
-    const randomItem =
-      currentCategoryItems[
-        Math.floor(Math.random() * currentCategoryItems.length)
-      ];
-    setCurrentItem(randomItem);
-    setHintsRevealed(0);
+    // Get items that haven't been used yet
+    const availableItems = currentCategoryItems.filter(
+      (item) => !usedItems.has(item.id)
+    );
+
+    let selectedItem: GameItem;
+
+    // If all items have been used, reset and start over
+    if (availableItems.length === 0) {
+      setUsedItems(new Set());
+      selectedItem =
+        currentCategoryItems[
+          Math.floor(Math.random() * currentCategoryItems.length)
+        ];
+      setUsedItems(new Set([selectedItem.id]));
+    } else {
+      // Pick a random item from unused items
+      selectedItem =
+        availableItems[Math.floor(Math.random() * availableItems.length)];
+      setUsedItems((prev) => new Set([...prev, selectedItem.id]));
+    }
+
+    setCurrentItem(selectedItem);
+    setHintsRevealed(1); // Always show the first hint
     setSelectedAnswer("");
     setShowFeedback(false);
     setIsCorrect(false);
 
     // Always use multiple choice for all difficulties
-    generateMultipleChoiceOptions(randomItem, currentCategoryItems);
-  }, [categoryId, generateMultipleChoiceOptions]);
+    generateMultipleChoiceOptions(selectedItem, currentCategoryItems);
+  }, [categoryId, generateMultipleChoiceOptions, usedItems]);
 
   const initialized = useRef(false);
 
@@ -83,9 +102,10 @@ const GamePlay: React.FC<GamePlayProps> = ({ categoryId, onBackToMenu }) => {
     }
   }, [categoryId, startNewRound, updateGameState]);
 
-  // Reset initialization when category changes
+  // Reset initialization and used items when category changes
   useEffect(() => {
     initialized.current = false;
+    setUsedItems(new Set());
   }, [categoryId]);
 
   const handleMultipleChoiceAnswer = (answer: string) => {
@@ -102,20 +122,32 @@ const GamePlay: React.FC<GamePlayProps> = ({ categoryId, onBackToMenu }) => {
       updateScore(points);
       updateGameState({ streak: gameState.streak + 1 });
       playSuccessSound();
+
+      // Show congratulations overlay for correct answers
+      setTimeout(() => {
+        startNewRound();
+      }, 3000);
     } else {
       setLives((prev) => Math.max(0, prev - 1));
       updateGameState({ streak: 0 });
       playErrorSound();
-    }
 
-    setTimeout(() => {
-      if (correct || lives <= 1) {
-        if (lives <= 1) setLives(3);
-        startNewRound();
-      } else {
-        setShowFeedback(false);
+      // Put the item back in the queue for later (remove from usedItems)
+      if (currentItem) {
+        setUsedItems((prev) => {
+          const newSet = new Set(prev);
+          newSet.delete(currentItem.id);
+          return newSet;
+        });
       }
-    }, 2000);
+
+      setTimeout(() => {
+        if (lives <= 1) {
+          setLives(3);
+        }
+        startNewRound();
+      }, 3000);
+    }
   };
 
   const revealHint = () => {
@@ -240,6 +272,22 @@ const GamePlay: React.FC<GamePlayProps> = ({ categoryId, onBackToMenu }) => {
               />
             ))}
           </div>
+
+          {/* Progress indicator */}
+          {(() => {
+            const totalItems =
+              categories.find((cat) => cat.id === categoryId)?.items.length ||
+              0;
+            const completedItems = usedItems.size;
+            return (
+              <div className='flex items-center space-x-1 sm:space-x-2 bg-blue-100 px-2 sm:px-3 py-1 rounded-full'>
+                <span className='text-blue-700 font-semibold text-xs sm:text-sm'>
+                  {completedItems}/{totalItems}
+                </span>
+              </div>
+            );
+          })()}
+
           <div className='flex items-center space-x-1 sm:space-x-2 bg-yellow-100 px-2 sm:px-3 py-1 rounded-full'>
             <Star size={14} className='sm:w-4 sm:h-4 text-yellow-500' />
             <span className='font-bold text-yellow-700 text-sm sm:text-base'>
@@ -340,35 +388,83 @@ const GamePlay: React.FC<GamePlayProps> = ({ categoryId, onBackToMenu }) => {
           </div>
         </div>
 
-        {/* Feedback */}
-        {showFeedback && (
-          <div
-            className={`mt-4 sm:mt-6 p-4 sm:p-6 rounded-xl text-center ${
-              isCorrect
-                ? "bg-green-100 border-green-400"
-                : "bg-red-100 border-red-400"
-            } border-2`}
-          >
-            <div className='text-3xl sm:text-4xl mb-2'>
-              {isCorrect ? "🎉" : "😔"}
-            </div>
+        {/* Feedback - only for wrong answers */}
+        {showFeedback && !isCorrect && (
+          <div className='mt-4 sm:mt-6 p-4 sm:p-6 rounded-xl text-center bg-red-100 border-red-400 border-2'>
+            <div className='text-3xl sm:text-4xl mb-2'>😔</div>
             <p
-              className={`text-lg sm:text-xl font-semibold ${
-                isCorrect ? "text-green-700" : "text-red-700"
-              } ${language === "ur" ? "font-urdu" : ""}`}
+              className={`text-lg sm:text-xl font-semibold text-red-700 ${
+                language === "ur" ? "font-urdu" : ""
+              }`}
             >
-              {isCorrect
-                ? language === "ur"
-                  ? "بہترین! صحیح جواب!"
-                  : "Excellent! Correct answer!"
-                : (language === "ur"
-                    ? "کوشش کریں! صحیح جواب: "
-                    : "Try again! Correct answer: ") +
-                  currentItem.name[language]}
+              {(language === "ur"
+                ? "کوشش کریں! صحیح جواب: "
+                : "Try again! Correct answer: ") + currentItem.name[language]}
             </p>
           </div>
         )}
+
+        {/* Category completion celebration */}
+        {(() => {
+          const totalItems =
+            categories.find((cat) => cat.id === categoryId)?.items.length || 0;
+          const completedItems = usedItems.size;
+          return completedItems === totalItems &&
+            completedItems > 0 &&
+            !showFeedback ? (
+            <div className='mt-4 sm:mt-6 p-4 sm:p-6 bg-gradient-to-r from-purple-100 to-pink-100 border-2 border-purple-400 rounded-xl text-center'>
+              <div className='text-4xl sm:text-5xl mb-3'>🎊</div>
+              <h3
+                className={`text-xl sm:text-2xl font-bold text-purple-700 mb-2 ${
+                  language === "ur" ? "font-urdu" : ""
+                }`}
+              >
+                {language === "ur" ? "مبارک ہو!" : "Congratulations!"}
+              </h3>
+              <p
+                className={`text-purple-600 ${
+                  language === "ur" ? "font-urdu" : ""
+                }`}
+              >
+                {language === "ur"
+                  ? "آپ نے اس کیٹگری کے تمام سوالات مکمل کر لیے!"
+                  : "You've completed all items in this category!"}
+              </p>
+            </div>
+          ) : null;
+        })()}
       </div>
+
+      {/* Correct Answer Celebration Overlay */}
+      {showFeedback && isCorrect && (
+        <div className='fixed inset-0 bg-gradient-to-br from-green-400 via-blue-500 to-purple-600 bg-opacity-95 flex items-center justify-center z-50 p-4'>
+          <div className='text-center'>
+            <div className='text-8xl sm:text-9xl mb-6 animate-bounce'>🎉</div>
+            <h2
+              className={`text-4xl sm:text-6xl font-bold text-white mb-4 drop-shadow-lg ${
+                language === "ur" ? "font-urdu" : ""
+              }`}
+            >
+              {language === "ur" ? "بہترین!" : "Excellent!"}
+            </h2>
+            <p
+              className={`text-2xl sm:text-3xl text-white mb-6 drop-shadow-md ${
+                language === "ur" ? "font-urdu" : ""
+              }`}
+            >
+              {language === "ur" ? "صحیح جواب!" : "Correct Answer!"}
+            </p>
+            <div className='text-6xl sm:text-7xl mb-4'>⭐</div>
+            <p
+              className={`text-xl sm:text-2xl text-white font-semibold ${
+                language === "ur" ? "font-urdu" : ""
+              }`}
+            >
+              {currentItem?.name[language]}
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* Game Over */}
       {lives === 0 && (
